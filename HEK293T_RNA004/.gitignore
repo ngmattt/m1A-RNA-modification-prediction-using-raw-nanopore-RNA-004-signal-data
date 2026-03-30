@@ -1,0 +1,8 @@
+data/
+*.bam
+*.fastq
+*.blow5
+*.pod5
+*.gz
+*.out
+*.err
