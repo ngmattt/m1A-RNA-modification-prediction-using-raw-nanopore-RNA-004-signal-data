@@ -91,21 +91,21 @@ Hyperparameters are selected using cross-validation on the training sites, and f
 
 ### Main model scripts
 
-- [`train_m1a_model_simple.py`](/Users/matthewng/Documents/New project/train_m1a_model_simple.py)  
+- [`train_m1a_model_simple.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/train_m1a_model_simple.py)  
   Simplified XGBoost-based site-level classifier script.
 
-- [`train_m1a_random_forest_simple.py`](/Users/matthewng/Documents/New project/train_m1a_random_forest_simple.py)  
+- [`train_m1a_random_forest_simple.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/train_m1a_random_forest_simple.py)  
   Simplified Random Forest site-level classifier script.
 
 ### Figure generation
 
-- [`generate_m1a_performance_figures.py`](/Users/matthewng/Documents/New project/generate_m1a_performance_figures.py)  
+- [`generate_m1a_performance_figures.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/generate_m1a_performance_figures.py)  
   Generates ROC curves, precision-recall curves, confusion matrices, and metric comparison plots for both models using `matplotlib` and `seaborn`.
 
 ### Additional training scripts
 
-- [`train_m1a_model.py`](/Users/matthewng/Documents/New project/train_m1a_model.py)
-- [`train_m1a_random_forest.py`](/Users/matthewng/Documents/New project/train_m1a_random_forest.py)
+- [`train_m1a_model.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/train_m1a_model.py)
+- [`train_m1a_random_forest.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/train_m1a_random_forest.py)
 
 These contain the same modeling ideas in a more modular form.
 
