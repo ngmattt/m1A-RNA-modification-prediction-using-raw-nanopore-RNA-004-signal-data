@@ -4,10 +4,9 @@ This project uses raw Oxford Nanopore direct RNA sequencing signal-derived featu
 
 The project currently includes:
 
-- an **XGBoost-based classifier** for site-level m1A prediction
+- an **XGBoost and CatBoost-based classifier** for site-level m1A prediction
 - a **Random Forest baseline**
 - scripts for **model training and evaluation**
-- a script to generate **publication-style performance figures**
 
 ## Project Goal
 
@@ -82,6 +81,7 @@ To avoid leakage, train/test splitting is performed by **site**, not by row. Thi
 
 The project compares:
 
+- **CatBoost**
 - **XGBoost**
 - **Random Forest**
 
@@ -91,21 +91,20 @@ Hyperparameters are selected using cross-validation on the training sites, and f
 
 ### Main model scripts
 
-- [`train_m1a_model_simple.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/train_m1a_model_simple.py)  
-  Simplified XGBoost-based site-level classifier script.
-
-- [`train_m1a_random_forest_simple.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/train_m1a_random_forest_simple.py)  
-  Simplified Random Forest site-level classifier script.
+- [`train_catboost.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/train_rf.py)  
+  CatBoost-based site-level classifier script.
+  
+- [`train_xgb.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/train_xgb.py)  
+  XGBoost-based site-level classifier script.
+  
+- [`train_rf.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/train_rf.py)  
+  Random Forest site-level classifier script.
 
 ### Figure generation
 
 - [`generate_m1a_performance_figures.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/generate_m1a_performance_figures.py)  
   Generates ROC curves, precision-recall curves, confusion matrices, and metric comparison plots for both models using `matplotlib` and `seaborn`.
 
-### Additional training scripts
-
-- [`train_m1a_model.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/train_m1a_model.py)
-- [`train_m1a_random_forest.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/train_m1a_random_forest.py)
 
 These contain the same modeling ideas in a more modular form.
 
@@ -130,16 +129,22 @@ pip install numpy pandas scikit-learn xgboost matplotlib seaborn
 
 ## How To Run
 
+### Train the CatBoost model
+
+```bash
+python3 train_catboost.py
+```
+
 ### Train the XGBoost model
 
 ```bash
-python3 train_m1a_model_simple.py
+python3 train_xgb.py
 ```
 
 ### Train the Random Forest model
 
 ```bash
-python3 train_m1a_random_forest_simple.py
+python3 train_rf.py
 ```
 
 ### Generate performance figures
@@ -155,6 +160,17 @@ figures/
 ```
 
 ## Performance Summary
+
+### CatBoost
+
+Held-out site-level test performance:
+
+- Accuracy: **0.8841**
+- Precision: **0.8817**
+- Recall: **0.8632**
+- F1-score: **0.8723**
+- AUROC: **0.9514**
+- AUPRC: **0.9503**
 
 ### XGBoost
 
@@ -193,10 +209,10 @@ The **Random Forest model** achieves higher precision, but misses more true modi
 
 The project includes traditional performance visualizations for manuscript preparation:
 
+- Performance Evaluation Bar Plot comparing Accuracy, Precision, Recall, F1-score, AUROC, and AUPRC
 - ROC curve comparison
-- precision-recall curve comparison
-- confusion matrices
-- bar plot comparing Accuracy, Precision, Recall, F1-score, AUROC, and AUPRC
+- Learning curves for all 3 models
+- Confusion matrices
 
 Example output files:
 
@@ -208,7 +224,7 @@ Example output files:
 
 - The current workflow assumes that each site has a **consistent label**.
 - The scripts are written for **site-level m1A prediction**, which is more suitable for biological interpretation than per-event classification alone.
-- The figure script retrains both models directly from the model scripts rather than loading serialized model objects.
+- The figure script retrains all models directly from the model scripts rather than loading serialized model objects.
 
 ## Future Directions
 
