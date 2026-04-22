@@ -22,7 +22,7 @@ import seaborn as sns
 import gseapy as gp
 from sklearn.model_selection import StratifiedKFold
 
-import train_m1a_model as shared_pipeline
+import train_xgb as shared_pipeline
 import train_m1a_catboost_simple as catboost_pipeline
 
 

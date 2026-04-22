@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 from pathlib import Path
 import pickle
 
@@ -30,7 +31,7 @@ except ImportError:  # pragma: no cover
 # ----------------------------
 # Config
 # ----------------------------
-DATA_PATH = (
+DEFAULT_DATA_PATH = (
     "/N/project/NGS-JangaLab/Matthew/rna_seq_data/ML_data/"
     "m1A_fully_balanced.tsv.gz"
 )
@@ -40,6 +41,23 @@ RANDOM_STATE = 42
 MODEL_CHOICE = "auto"   # "auto", "xgboost", or "histgb"
 OUTPUT_PREFIX = "m1a_site_model_simple"
 EPS = 1e-8
+
+
+def resolve_data_path():
+    candidates = [
+        Path("m1A_fully_balanced.tsv.gz"),
+        Path.cwd() / "m1A_fully_balanced.tsv.gz",
+    ]
+
+    env_path = Path(os.environ["M1A_DATA_PATH"]) if "M1A_DATA_PATH" in os.environ else None
+    if env_path is not None:
+        candidates.insert(0, env_path)
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return Path(DEFAULT_DATA_PATH)
 
 
 # ----------------------------
@@ -507,103 +525,83 @@ def print_metric_block(title, metrics):
     print("Confusion matrix:")
     print(np.array(metrics["confusion_matrix"]))
 
+def main():
+    data_path = resolve_data_path()
+    print(f"Loading dataset from: {data_path}")
+    raw_df = pd.read_csv(data_path, sep="\t", compression="gzip")
 
-# ----------------------------
-# Load dataset
-# ----------------------------
-print("Loading dataset...")
-raw_df = pd.read_csv(DATA_PATH, sep="\t", compression="gzip")
+    print("Building event-level features...")
+    event_df, numeric_cols, categorical_cols = prepare_event_table(raw_df)
+    validate_site_labels(event_df)
 
+    print(f"Event rows: {len(event_df)}")
+    print(f"Unique sites: {event_df['site'].nunique()}")
+    print("Class distribution:")
+    print(event_df["label"].value_counts().sort_index())
 
-# ----------------------------
-# Build event-level features
-# ----------------------------
-print("Building event-level features...")
-event_df, numeric_cols, categorical_cols = prepare_event_table(raw_df)
-validate_site_labels(event_df)
-
-print(f"Event rows: {len(event_df)}")
-print(f"Unique sites: {event_df['site'].nunique()}")
-print("Class distribution:")
-print(event_df["label"].value_counts().sort_index())
-
-
-# ----------------------------
-# Split by site
-# ----------------------------
-splitter = GroupShuffleSplit(
-    n_splits=1,
-    test_size=TEST_SIZE,
-    random_state=RANDOM_STATE,
-)
-train_idx, test_idx = next(
-    splitter.split(event_df[["site"]], event_df["label"], groups=event_df["site"])
-)
-
-train_event_df = event_df.iloc[train_idx].reset_index(drop=True)
-test_event_df = event_df.iloc[test_idx].reset_index(drop=True)
-train_site_df, feature_cols = build_site_table(train_event_df, numeric_cols, categorical_cols)
-test_site_df, _ = build_site_table(test_event_df, numeric_cols, categorical_cols)
-
-model_name = choose_model_name(MODEL_CHOICE)
-print(f"\nTraining model: {model_name}")
-print(f"Train event rows: {len(train_event_df)}")
-print(f"Test event rows: {len(test_event_df)}")
-print(f"Train sites: {len(train_site_df)}")
-print(f"Test sites: {len(test_site_df)}")
-
-
-# ----------------------------
-# Model selection
-# ----------------------------
-print("\nSelecting hyperparameters and threshold with site-level CV...")
-best_result = select_best_model(train_site_df, feature_cols, model_name)
-
-print("\nBest grouped-CV selection:")
-print(best_result)
-
-
-# ----------------------------
-# Train final ensemble
-# ----------------------------
-final_models = []
-for model_id, result in enumerate(best_result["top_results"], start=1):
-    model = build_model(model_name, result["params"], RANDOM_STATE + model_id)
-    model.fit(train_site_df[feature_cols], train_site_df["label"])
-    final_models.append(model)
-
-
-# ----------------------------
-# Test set predictions
-# ----------------------------
-site_prob = ensemble_predict(final_models, test_site_df[feature_cols])
-site_true = test_site_df["label"].to_numpy()
-site_metrics = compute_metrics(site_true, site_prob, best_result["threshold"])
-
-print_metric_block("SITE-LEVEL TEST METRICS", site_metrics)
-print("\nSite-level classification report:")
-print(
-    classification_report(
-        site_true,
-        (site_prob >= best_result["threshold"]).astype(int),
-        zero_division=0,
+    splitter = GroupShuffleSplit(
+        n_splits=1,
+        test_size=TEST_SIZE,
+        random_state=RANDOM_STATE,
     )
-)
+    train_idx, test_idx = next(
+        splitter.split(event_df[["site"]], event_df["label"], groups=event_df["site"])
+    )
+
+    train_event_df = event_df.iloc[train_idx].reset_index(drop=True)
+    test_event_df = event_df.iloc[test_idx].reset_index(drop=True)
+    train_site_df, feature_cols = build_site_table(
+        train_event_df, numeric_cols, categorical_cols
+    )
+    test_site_df, _ = build_site_table(test_event_df, numeric_cols, categorical_cols)
+
+    model_name = choose_model_name(MODEL_CHOICE)
+    print(f"\nTraining model: {model_name}")
+    print(f"Train event rows: {len(train_event_df)}")
+    print(f"Test event rows: {len(test_event_df)}")
+    print(f"Train sites: {len(train_site_df)}")
+    print(f"Test sites: {len(test_site_df)}")
+
+    print("\nSelecting hyperparameters and threshold with site-level CV...")
+    best_result = select_best_model(train_site_df, feature_cols, model_name)
+
+    print("\nBest grouped-CV selection:")
+    print(best_result)
+
+    final_models = []
+    for model_id, result in enumerate(best_result["top_results"], start=1):
+        model = build_model(model_name, result["params"], RANDOM_STATE + model_id)
+        model.fit(train_site_df[feature_cols], train_site_df["label"])
+        final_models.append(model)
+
+    site_prob = ensemble_predict(final_models, test_site_df[feature_cols])
+    site_true = test_site_df["label"].to_numpy()
+    site_metrics = compute_metrics(site_true, site_prob, best_result["threshold"])
+
+    print_metric_block("SITE-LEVEL TEST METRICS", site_metrics)
+    print("\nSite-level classification report:")
+    print(
+        classification_report(
+            site_true,
+            (site_prob >= best_result["threshold"]).astype(int),
+            zero_division=0,
+        )
+    )
+
+    artifact = {
+        "models": final_models,
+        "feature_columns": feature_cols,
+        "numeric_event_columns": numeric_cols,
+        "categorical_event_columns": categorical_cols,
+        "threshold": best_result["threshold"],
+    }
+
+    model_path = Path(f"{OUTPUT_PREFIX}.joblib")
+    with model_path.open("wb") as handle:
+        pickle.dump(artifact, handle)
+
+    print(f"\nSaved model to: {model_path.resolve()}")
 
 
-# ----------------------------
-# Save outputs
-# ----------------------------
-artifact = {
-    "models": final_models,
-    "feature_columns": feature_cols,
-    "numeric_event_columns": numeric_cols,
-    "categorical_event_columns": categorical_cols,
-    "threshold": best_result["threshold"],
-}
-
-model_path = Path(f"{OUTPUT_PREFIX}.joblib")
-with model_path.open("wb") as handle:
-    pickle.dump(artifact, handle)
-
-print(f"\nSaved model to: {model_path.resolve()}")
+if __name__ == "__main__":
+    main()

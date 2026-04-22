@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 from pathlib import Path
 import pickle
 
@@ -21,13 +22,13 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import GroupShuffleSplit, StratifiedKFold
 
-import train_m1a_model as shared_pipeline
+import train_xgb as shared_pipeline
 
 
 # ----------------------------
 # Config
 # ----------------------------
-DATA_PATH = (
+DEFAULT_DATA_PATH = (
     "/N/project/NGS-JangaLab/Matthew/rna_seq_data/ML_data/"
     "m1A_fully_balanced.tsv.gz"
 )
@@ -36,6 +37,23 @@ CV_FOLDS = 5
 RANDOM_STATE = 42
 OUTPUT_PREFIX = "m1a_catboost_simple"
 EPS = 1e-8
+
+
+def resolve_data_path():
+    candidates = [
+        Path("m1A_fully_balanced.tsv.gz"),
+        Path.cwd() / "m1A_fully_balanced.tsv.gz",
+    ]
+
+    env_path = Path(os.environ["M1A_DATA_PATH"]) if "M1A_DATA_PATH" in os.environ else None
+    if env_path is not None:
+        candidates.insert(0, env_path)
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return Path(DEFAULT_DATA_PATH)
 
 
 # ----------------------------
@@ -244,110 +262,88 @@ def print_metric_block(title, metrics):
     print("Confusion matrix:")
     print(np.array(metrics["confusion_matrix"]))
 
+def main():
+    data_path = resolve_data_path()
+    print(f"Loading dataset from: {data_path}")
+    raw_df = pd.read_csv(data_path, sep="\t", compression="gzip")
 
-# ----------------------------
-# Load dataset
-# ----------------------------
-print("Loading dataset...")
-raw_df = pd.read_csv(DATA_PATH, sep="\t", compression="gzip")
+    print("Building event-level features...")
+    event_df, numeric_cols, categorical_cols = shared_pipeline.prepare_event_table(raw_df)
+    shared_pipeline.validate_site_labels(event_df)
 
+    print(f"Event rows: {len(event_df)}")
+    print(f"Unique sites: {event_df['site'].nunique()}")
+    print("Class distribution:")
+    print(event_df["label"].value_counts().sort_index())
 
-# ----------------------------
-# Build event-level features
-# ----------------------------
-print("Building event-level features...")
-event_df, numeric_cols, categorical_cols = shared_pipeline.prepare_event_table(raw_df)
-shared_pipeline.validate_site_labels(event_df)
-
-print(f"Event rows: {len(event_df)}")
-print(f"Unique sites: {event_df['site'].nunique()}")
-print("Class distribution:")
-print(event_df["label"].value_counts().sort_index())
-
-
-# ----------------------------
-# Split by site
-# ----------------------------
-splitter = GroupShuffleSplit(
-    n_splits=1,
-    test_size=TEST_SIZE,
-    random_state=RANDOM_STATE,
-)
-train_idx, test_idx = next(
-    splitter.split(event_df[["site"]], event_df["label"], groups=event_df["site"])
-)
-
-train_event_df = event_df.iloc[train_idx].reset_index(drop=True)
-test_event_df = event_df.iloc[test_idx].reset_index(drop=True)
-train_site_df, feature_cols = shared_pipeline.build_site_table(
-    train_event_df, numeric_cols, categorical_cols
-)
-test_site_df, _ = shared_pipeline.build_site_table(
-    test_event_df, numeric_cols, categorical_cols
-)
-x_train, x_test, cat_feature_indices = prepare_catboost_tables(
-    train_site_df, test_site_df, feature_cols, categorical_cols
-)
-y_train = train_site_df["label"].to_numpy()
-y_test = test_site_df["label"].to_numpy()
-
-print("\nTraining model: catboost")
-print(f"Train event rows: {len(train_event_df)}")
-print(f"Test event rows: {len(test_event_df)}")
-print(f"Train sites: {len(train_site_df)}")
-print(f"Test sites: {len(test_site_df)}")
-
-
-# ----------------------------
-# Model selection
-# ----------------------------
-print("\nSelecting hyperparameters and threshold with site-level CV...")
-best_result = select_best_model(x_train, y_train, cat_feature_indices)
-
-print("\nBest grouped-CV selection:")
-print(best_result)
-
-
-# ----------------------------
-# Train final ensemble
-# ----------------------------
-final_models = []
-for model_id, result in enumerate(best_result["top_results"], start=1):
-    model = build_model(result["params"], RANDOM_STATE + model_id)
-    model.fit(x_train, y_train, cat_features=cat_feature_indices)
-    final_models.append(model)
-
-
-# ----------------------------
-# Test set predictions
-# ----------------------------
-site_prob = ensemble_predict(final_models, x_test)
-site_true = y_test
-site_metrics = compute_metrics(site_true, site_prob, best_result["threshold"])
-
-print_metric_block("SITE-LEVEL TEST METRICS", site_metrics)
-print("\nSite-level classification report:")
-print(
-    classification_report(
-        site_true,
-        (site_prob >= best_result["threshold"]).astype(int),
-        zero_division=0,
+    splitter = GroupShuffleSplit(
+        n_splits=1,
+        test_size=TEST_SIZE,
+        random_state=RANDOM_STATE,
     )
-)
+    train_idx, test_idx = next(
+        splitter.split(event_df[["site"]], event_df["label"], groups=event_df["site"])
+    )
+
+    train_event_df = event_df.iloc[train_idx].reset_index(drop=True)
+    test_event_df = event_df.iloc[test_idx].reset_index(drop=True)
+    train_site_df, feature_cols = shared_pipeline.build_site_table(
+        train_event_df, numeric_cols, categorical_cols
+    )
+    test_site_df, _ = shared_pipeline.build_site_table(
+        test_event_df, numeric_cols, categorical_cols
+    )
+    x_train, x_test, cat_feature_indices = prepare_catboost_tables(
+        train_site_df, test_site_df, feature_cols, categorical_cols
+    )
+    y_train = train_site_df["label"].to_numpy()
+    y_test = test_site_df["label"].to_numpy()
+
+    print("\nTraining model: catboost")
+    print(f"Train event rows: {len(train_event_df)}")
+    print(f"Test event rows: {len(test_event_df)}")
+    print(f"Train sites: {len(train_site_df)}")
+    print(f"Test sites: {len(test_site_df)}")
+
+    print("\nSelecting hyperparameters and threshold with site-level CV...")
+    best_result = select_best_model(x_train, y_train, cat_feature_indices)
+
+    print("\nBest grouped-CV selection:")
+    print(best_result)
+
+    final_models = []
+    for model_id, result in enumerate(best_result["top_results"], start=1):
+        model = build_model(result["params"], RANDOM_STATE + model_id)
+        model.fit(x_train, y_train, cat_features=cat_feature_indices)
+        final_models.append(model)
+
+    site_prob = ensemble_predict(final_models, x_test)
+    site_true = y_test
+    site_metrics = compute_metrics(site_true, site_prob, best_result["threshold"])
+
+    print_metric_block("SITE-LEVEL TEST METRICS", site_metrics)
+    print("\nSite-level classification report:")
+    print(
+        classification_report(
+            site_true,
+            (site_prob >= best_result["threshold"]).astype(int),
+            zero_division=0,
+        )
+    )
+
+    artifact = {
+        "models": final_models,
+        "feature_columns": feature_cols,
+        "categorical_columns": categorical_cols,
+        "threshold": best_result["threshold"],
+    }
+
+    model_path = Path(f"{OUTPUT_PREFIX}.pkl")
+    with model_path.open("wb") as handle:
+        pickle.dump(artifact, handle)
+
+    print(f"\nSaved model to: {model_path.resolve()}")
 
 
-# ----------------------------
-# Save outputs
-# ----------------------------
-artifact = {
-    "models": final_models,
-    "feature_columns": feature_cols,
-    "categorical_columns": categorical_cols,
-    "threshold": best_result["threshold"],
-}
-
-model_path = Path(f"{OUTPUT_PREFIX}.pkl")
-with model_path.open("wb") as handle:
-    pickle.dump(artifact, handle)
-
-print(f"\nSaved model to: {model_path.resolve()}")
+if __name__ == "__main__":
+    main()

@@ -3,9 +3,9 @@
 import os
 from pathlib import Path
 
-WORKDIR = Path("/N/project/NGS-JangaLab/Matthew_rna_seq_data/ML_data")
+WORKDIR = Path.cwd()
 OUTPUT_DIR = WORKDIR / "figures"
-OUTPUT_DIR.mkdir(exist_ok=False)
+OUTPUT_DIR.mkdir(exist_ok=True)
 
 mpl_dir = OUTPUT_DIR / ".mpl-cache"
 font_dir = OUTPUT_DIR / ".font-cache"
@@ -34,19 +34,36 @@ from sklearn.metrics import (
 )
 from sklearn.model_selection import GroupShuffleSplit
 
-import train_m1a_model_simple as xgb_script
-import train_m1a_random_forest_simple as rf_script
+import train_xgb as xgb_script
+import train_rf as rf_script
 
 
 # ----------------------------
 # Config
 # ----------------------------
-DATA_PATH = (
+DEFAULT_DATA_PATH = (
     "/N/project/NGS-JangaLab/Matthew/rna_seq_data/ML_data/"
     "m1A_fully_balanced.tsv.gz"
 )
 TEST_SIZE = 0.20
 RANDOM_STATE = 42
+
+
+def resolve_data_path():
+    candidates = [
+        Path("m1A_fully_balanced.tsv.gz"),
+        Path.cwd() / "m1A_fully_balanced.tsv.gz",
+    ]
+
+    env_path = Path(os.environ["M1A_DATA_PATH"]) if "M1A_DATA_PATH" in os.environ else None
+    if env_path is not None:
+        candidates.insert(0, env_path)
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return Path(DEFAULT_DATA_PATH)
 
 
 # ----------------------------
@@ -261,34 +278,41 @@ def save_metrics_barplot(xgb_metrics, rf_metrics):
     plt.close(fig)
 
 
-print("Loading dataset...")
-raw_df = pd.read_csv(DATA_PATH, sep="\t", compression="gzip")
+def main():
+    print("Loading dataset...")
+    data_path = resolve_data_path()
+    print(f"Loading dataset from: {data_path}")
+    raw_df = pd.read_csv(data_path, sep="\t", compression="gzip")
 
-print("Rebuilding the same held-out site split...")
-train_raw_df, test_raw_df = split_raw_data(raw_df)
+    print("Rebuilding the same held-out site split...")
+    train_raw_df, test_raw_df = split_raw_data(raw_df)
 
-print("Training and scoring XGBoost model...")
-xgb_true, xgb_prob, xgb_threshold = train_and_score_xgboost(train_raw_df, test_raw_df)
-xgb_metrics = compute_summary_metrics(xgb_true, xgb_prob, xgb_threshold)
+    print("Training and scoring XGBoost model...")
+    xgb_true, xgb_prob, xgb_threshold = train_and_score_xgboost(train_raw_df, test_raw_df)
+    xgb_metrics = compute_summary_metrics(xgb_true, xgb_prob, xgb_threshold)
 
-print("Training and scoring Random Forest model...")
-rf_true, rf_prob, rf_threshold = train_and_score_random_forest(train_raw_df, test_raw_df)
-rf_metrics = compute_summary_metrics(rf_true, rf_prob, rf_threshold)
+    print("Training and scoring Random Forest model...")
+    rf_true, rf_prob, rf_threshold = train_and_score_random_forest(train_raw_df, test_raw_df)
+    rf_metrics = compute_summary_metrics(rf_true, rf_prob, rf_threshold)
 
-print("\nXGBoost metrics:")
-for key, value in xgb_metrics.items():
-    if key != "ConfusionMatrix":
-        print(f"{key}: {value:.4f}")
-print(xgb_metrics["ConfusionMatrix"])
+    print("\nXGBoost metrics:")
+    for key, value in xgb_metrics.items():
+        if key != "ConfusionMatrix":
+            print(f"{key}: {value:.4f}")
+    print(xgb_metrics["ConfusionMatrix"])
 
-print("\nRandom Forest metrics:")
-for key, value in rf_metrics.items():
-    if key != "ConfusionMatrix":
-        print(f"{key}: {value:.4f}")
-print(rf_metrics["ConfusionMatrix"])
+    print("\nRandom Forest metrics:")
+    for key, value in rf_metrics.items():
+        if key != "ConfusionMatrix":
+            print(f"{key}: {value:.4f}")
+    print(rf_metrics["ConfusionMatrix"])
 
-print("\nSaving figures...")
-save_roc_pr_figure(xgb_true, xgb_prob, rf_true, rf_prob)
-save_confusion_figure(xgb_metrics, rf_metrics)
-save_metrics_barplot(xgb_metrics, rf_metrics)
-print(f"Figures saved in: {OUTPUT_DIR}")
+    print("\nSaving figures...")
+    save_roc_pr_figure(xgb_true, xgb_prob, rf_true, rf_prob)
+    save_confusion_figure(xgb_metrics, rf_metrics)
+    save_metrics_barplot(xgb_metrics, rf_metrics)
+    print(f"Figures saved in: {OUTPUT_DIR}")
+
+
+if __name__ == "__main__":
+    main()

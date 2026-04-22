@@ -1,3 +1,11 @@
 *.out
 *.err
 *.joblib
+*.pkl
+__pycache__/
+*.pyc
+figures/
+results/
+work/
+.nextflow/
+.nextflow*
