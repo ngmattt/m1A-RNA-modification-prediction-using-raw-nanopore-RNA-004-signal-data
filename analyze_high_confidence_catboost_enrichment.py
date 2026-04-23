@@ -47,9 +47,14 @@ LIBRARIES = [
 # ----------------------------
 sns.set_theme(style="whitegrid", context="talk")
 plt.rcParams["figure.dpi"] = 160
-plt.rcParams["savefig.dpi"] = 300
+plt.rcParams["savefig.dpi"] = 600
 plt.rcParams["font.family"] = "DejaVu Sans"
 
+SAVEFIG_KWARGS = {
+    "bbox_inches": "tight",
+    "pad_inches": 0.35,
+    "dpi": 600,
+}
 
 def save_dotplot(df, title, filename):
     top_df = df.head(12).copy()
@@ -76,8 +81,9 @@ def save_dotplot(df, title, filename):
         fontsize=10,
     )
     fig.subplots_adjust(left=0.46, right=0.78, top=0.90, bottom=0.12)
-    fig.savefig(OUTPUT_DIR / f"{filename}.png", bbox_inches="tight", pad_inches=0.35)
+    fig.savefig(OUTPUT_DIR / f"{filename}.png", **SAVEFIG_KWARGS)
     fig.savefig(OUTPUT_DIR / f"{filename}.pdf", bbox_inches="tight", pad_inches=0.35)
+    fig.savefig(OUTPUT_DIR / f"{filename}.svg", bbox_inches="tight", pad_inches=0.35)
     plt.close(fig)
 
 
@@ -92,8 +98,9 @@ def save_barplot(df, title, filename):
     for container in ax.containers:
         ax.bar_label(container, fmt="%.2f", padding=3, fontsize=9)
     fig.subplots_adjust(left=0.42, right=0.97, top=0.90, bottom=0.12)
-    fig.savefig(OUTPUT_DIR / f"{filename}.png", bbox_inches="tight", pad_inches=0.35)
+    fig.savefig(OUTPUT_DIR / f"{filename}.png", **SAVEFIG_KWARGS)
     fig.savefig(OUTPUT_DIR / f"{filename}.pdf", bbox_inches="tight", pad_inches=0.35)
+    fig.savefig(OUTPUT_DIR / f"{filename}.svg", bbox_inches="tight", pad_inches=0.35)
     plt.close(fig)
 
 
