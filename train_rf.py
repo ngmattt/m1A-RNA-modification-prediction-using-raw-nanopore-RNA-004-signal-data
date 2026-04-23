@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -26,7 +27,7 @@ from sklearn.model_selection import GroupShuffleSplit, StratifiedKFold
 # ----------------------------
 # Config
 # ----------------------------
-DATA_PATH = (
+DEFAULT_DATA_PATH = (
     "/N/project/NGS-JangaLab/Matthew/rna_seq_data/ML_data/"
     "m1A_fully_balanced.tsv.gz"
 )
@@ -35,6 +36,23 @@ CV_FOLDS = 5
 RANDOM_STATE = 42
 OUTPUT_PREFIX = "m1a_random_forest_simple"
 EPS = 1e-8
+
+
+def resolve_data_path():
+    candidates = [
+        Path("m1A_fully_balanced.tsv.gz"),
+        Path.cwd() / "m1A_fully_balanced.tsv.gz",
+    ]
+
+    env_path = Path(os.environ["M1A_DATA_PATH"]) if "M1A_DATA_PATH" in os.environ else None
+    if env_path is not None:
+        candidates.insert(0, env_path)
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return Path(DEFAULT_DATA_PATH)
 
 
 # ----------------------------
@@ -363,102 +381,76 @@ def print_metric_block(title, metrics):
     print("Confusion matrix:")
     print(np.array(metrics["confusion_matrix"]))
 
+def main():
+    data_path = resolve_data_path()
+    print(f"Loading dataset from: {data_path}")
+    raw_df = pd.read_csv(data_path, sep="\t", compression="gzip")
 
-# ----------------------------
-# Load dataset
-# ----------------------------
-print("Loading dataset...")
-raw_df = pd.read_csv(DATA_PATH, sep="\t", compression="gzip")
+    print("Building event features...")
+    event_df, event_feature_cols = prepare_event_table(raw_df)
+    validate_site_labels(event_df)
 
-
-# ----------------------------
-# Build event-level features
-# ----------------------------
-print("Building event features...")
-event_df, event_feature_cols = prepare_event_table(raw_df)
-validate_site_labels(event_df)
-
-
-# ----------------------------
-# Split by site
-# ----------------------------
-splitter = GroupShuffleSplit(
-    n_splits=1,
-    test_size=TEST_SIZE,
-    random_state=RANDOM_STATE,
-)
-train_idx, test_idx = next(
-    splitter.split(event_df[["site"]], event_df["label"], groups=event_df["site"])
-)
-
-train_event_df = event_df.iloc[train_idx].reset_index(drop=True)
-test_event_df = event_df.iloc[test_idx].reset_index(drop=True)
-train_site_df, site_feature_cols = build_site_table(train_event_df, event_feature_cols)
-test_site_df, _ = build_site_table(test_event_df, event_feature_cols)
-
-print(f"Event rows: {len(event_df)}")
-print(f"Train sites: {len(train_site_df)}")
-print(f"Test sites: {len(test_site_df)}")
-print("Class distribution:")
-print(train_site_df["label"].value_counts().sort_index())
-
-
-# ----------------------------
-# Prepare matrices
-# ----------------------------
-imputer = SimpleImputer(strategy="median")
-x_train = imputer.fit_transform(train_site_df[site_feature_cols])
-x_test = imputer.transform(test_site_df[site_feature_cols])
-y_train = train_site_df["label"].to_numpy()
-y_test = test_site_df["label"].to_numpy()
-
-
-# ----------------------------
-# Model selection
-# ----------------------------
-print("\nSelecting Random Forest hyperparameters...")
-best_result = select_best_model(x_train, y_train)
-
-print("\nBest CV configuration:")
-print(best_result)
-
-
-# ----------------------------
-# Train final model
-# ----------------------------
-final_model = build_model(best_result["params"], RANDOM_STATE)
-final_model.fit(x_train, y_train)
-
-
-# ----------------------------
-# Test set predictions
-# ----------------------------
-test_prob = final_model.predict_proba(x_test)[:, 1]
-test_metrics = compute_metrics(y_test, test_prob, best_result["threshold"])
-
-print_metric_block("SITE-LEVEL TEST METRICS", test_metrics)
-print("\nClassification report:")
-print(
-    classification_report(
-        y_test,
-        (test_prob >= best_result["threshold"]).astype(int),
-        zero_division=0,
+    splitter = GroupShuffleSplit(
+        n_splits=1,
+        test_size=TEST_SIZE,
+        random_state=RANDOM_STATE,
     )
-)
+    train_idx, test_idx = next(
+        splitter.split(event_df[["site"]], event_df["label"], groups=event_df["site"])
+    )
+
+    train_event_df = event_df.iloc[train_idx].reset_index(drop=True)
+    test_event_df = event_df.iloc[test_idx].reset_index(drop=True)
+    train_site_df, site_feature_cols = build_site_table(train_event_df, event_feature_cols)
+    test_site_df, _ = build_site_table(test_event_df, event_feature_cols)
+
+    print(f"Event rows: {len(event_df)}")
+    print(f"Train sites: {len(train_site_df)}")
+    print(f"Test sites: {len(test_site_df)}")
+    print("Class distribution:")
+    print(train_site_df["label"].value_counts().sort_index())
+
+    imputer = SimpleImputer(strategy="median")
+    x_train = imputer.fit_transform(train_site_df[site_feature_cols])
+    x_test = imputer.transform(test_site_df[site_feature_cols])
+    y_train = train_site_df["label"].to_numpy()
+    y_test = test_site_df["label"].to_numpy()
+
+    print("\nSelecting Random Forest hyperparameters...")
+    best_result = select_best_model(x_train, y_train)
+
+    print("\nBest CV configuration:")
+    print(best_result)
+
+    final_model = build_model(best_result["params"], RANDOM_STATE)
+    final_model.fit(x_train, y_train)
+
+    test_prob = final_model.predict_proba(x_test)[:, 1]
+    test_metrics = compute_metrics(y_test, test_prob, best_result["threshold"])
+
+    print_metric_block("SITE-LEVEL TEST METRICS", test_metrics)
+    print("\nClassification report:")
+    print(
+        classification_report(
+            y_test,
+            (test_prob >= best_result["threshold"]).astype(int),
+            zero_division=0,
+        )
+    )
+
+    artifact = {
+        "model": final_model,
+        "imputer": imputer,
+        "site_feature_columns": site_feature_cols,
+        "event_feature_columns": event_feature_cols,
+        "threshold": best_result["threshold"],
+    }
+
+    model_path = Path(f"{OUTPUT_PREFIX}.joblib")
+    dump(artifact, model_path)
+
+    print(f"\nSaved model to: {model_path.resolve()}")
 
 
-# ----------------------------
-# Save outputs
-# ----------------------------
-artifact = {
-    "model": final_model,
-    "imputer": imputer,
-    "site_feature_columns": site_feature_cols,
-    "event_feature_columns": event_feature_cols,
-    "threshold": best_result["threshold"],
-}
-
-model_path = Path(f"{OUTPUT_PREFIX}.joblib")
-dump(artifact, model_path)
-
-print(f"\nSaved model to: {model_path.resolve()}")
+if __name__ == "__main__":
+    main()

@@ -1,22 +1,27 @@
 # m1A RNA Modification Prediction Using Raw Nanopore RNA004 Signal Data
 
-This project uses raw Oxford Nanopore direct RNA sequencing signal-derived features to predict **N1-methyladenosine (m1A)** modification sites. The workflow is designed around **site-level prediction**, where multiple nanopore events from the same genomic site are summarized and used to classify whether that site is modified.
+This repository contains a machine learning workflow for predicting **N1-methyladenosine (m1A)** RNA modification sites from **Oxford Nanopore direct RNA RNA004** signal-derived features. The project is organized around **site-level prediction**, where multiple nanopore events aligned to the same genomic or transcriptomic position are aggregated into one biologically meaningful prediction unit.
 
-The project currently includes:
+The repository now supports two ways of running the project:
 
-- an **XGBoost and CatBoost-based classifier** for site-level m1A prediction
-- a **Random Forest baseline**
-- scripts for **model training and evaluation**
+- the original script-based workflow
+- a new **Nextflow** workflow for portable end-to-end execution
 
-## Project Goal
+## Project Overview
 
-The main goal of this project is to determine whether raw signal features from Nanopore **RNA004** direct RNA sequencing contain enough information to distinguish **m1A-modified** from **unmodified** sites.
+The main goal of this project is to test whether raw nanopore signal features contain enough information to distinguish **m1A-modified** from **unmodified** sites.
 
-Instead of predicting modification status for individual events only, this project focuses on **site-level classification**, which is more biologically meaningful because RNA modification is typically interpreted at the transcriptomic position level.
+The workflow starts from `f5c eventalign`-style signal tables and can also be run from raw nanopore signal input when using Nextflow. Candidate sites are labeled with a HEK293T BED file, balanced at both the site and row levels, and then modeled with tree-based classifiers.
+
+Models compared in this project:
+
+- **XGBoost**
+- **Random Forest**
+- **CatBoost**
 
 ## Dataset
 
-The training data is a tab-separated gzip-compressed file of nanopore event-level measurements:
+The balanced development dataset contains nanopore event-level rows with columns such as:
 
 - `contig`
 - `position`
@@ -36,33 +41,34 @@ The training data is a tab-separated gzip-compressed file of nanopore event-leve
 - `samples`
 - `label`
 
-Each row represents one nanopore event. A site is defined as:
+A site is defined as:
 
 ```text
 site = contig:position
 ```
 
-The dataset used in development contains:
+The dataset used for model development contains:
 
 - **53,622 event rows**
 - **1,032 unique sites**
-- balanced event labels: **26,811 negative** and **26,811 positive**
+- **26,811 negative** event rows
+- **26,811 positive** event rows
 
 ## Modeling Strategy
 
 ### 1. Event-level feature engineering
 
-For each event, the scripts derive additional signal features such as:
+Event-level features include:
 
-- signal difference between observed and expected current
+- observed vs expected signal differences
 - signal ratios
 - event span and normalized event length
 - summary statistics from the raw `samples` vector
-- sequence-context features from `reference_kmer` and `model_kmer`
+- k-mer and sequence-context features
 
 ### 2. Site-level aggregation
 
-Because the prediction target is the **modification site**, not a single event, event features are grouped by site and summarized using:
+Because m1A is interpreted at the site level, event features are grouped by `contig:position` and summarized across reads using:
 
 - mean
 - standard deviation
@@ -71,44 +77,115 @@ Because the prediction target is the **modification site**, not a single event, 
 - median
 - quantiles
 
-This reduces noise across reads and creates one feature vector per site.
+### 3. Site-aware splitting
 
-### 3. Site-aware train/test splitting
-
-To avoid leakage, train/test splitting is performed by **site**, not by row. This ensures that events from the same site do not appear in both training and test sets.
+Train/test splitting is performed by **site**, not by individual event rows, to reduce read-level leakage.
 
 ### 4. Model selection
 
-The project compares:
+Hyperparameters are selected using grouped cross-validation, and final performance is measured on held-out sites.
 
-- **CatBoost**
-- **XGBoost**
-- **Random Forest**
+## Repository Layout
 
-Hyperparameters are selected using cross-validation on the training sites, and final performance is measured on held-out test sites.
+### Core model scripts
 
-## Repository Files
+- `train_xgb.py`
+- `train_rf.py`
+- `train_catboost.py`
+- `generate_m1A_performance_figures.py`
 
-### Main model scripts
+These are the primary entry points for model development and evaluation. The repository now uses these filenames directly rather than alias wrapper scripts.
 
-- [`train_catboost.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/train_rf.py)  
-  CatBoost-based site-level classifier script.
-  
-- [`train_xgb.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/train_xgb.py)  
-  XGBoost-based site-level classifier script.
-  
-- [`train_rf.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/train_rf.py)  
-  Random Forest site-level classifier script.
+### Original preprocessing and labeling scripts
 
-### Figure generation
+- `dorado_basecall.sh`
+- `fastq_to_bam.sh`
+- `f5c_index_eventalign.sh`
+- `filter_f5c_features.sh`
+- `label_m1A_filtered.py`
+- `downsample_m1A.py`
+- `m1A_row_balance.sh`
 
-- [`generate_m1a_performance_figures.py`](/N/project/NGS-JangaLab/Matthew/rna_seq_data/scripts/generate_m1a_performance_figures.py)  
-  Generates ROC curves, precision-recall curves, confusion matrices, and metric comparison plots for both models using `matplotlib` and `seaborn`.
+### Nextflow workflow
 
+- `main.nf`
+- `nextflow.config`
+- `NEXTFLOW.md`
+- `modules/local/`
+- `bin/`
 
-These contain the same modeling ideas in a more modular form.
+### Nextflow helper scripts
 
-## Requirements
+- `bin/label_eventalign_from_bed.py`
+- `bin/balance_eventalign_dataset.py`
+
+## Nextflow Workflow
+
+The Nextflow workflow packages the repository into a more portable pipeline.
+
+### Supported modes
+
+#### 1. Start from an already balanced HEK293T table
+
+```bash
+nextflow run main.nf \
+  --hek293t_labeled_events /path/to/m1A_fully_balanced.tsv.gz
+```
+
+#### 2. Start from raw HEK293T nanopore signal data
+
+```bash
+nextflow run main.nf -profile conda \
+  --raw_mode true \
+  --hek293t_pod5 /path/to/HEK293T_run.pod5 \
+  --reference_fasta /path/to/reference.fa \
+  --reference_kmer_model /path/to/rna004.nucleotide.5mer.model \
+  --m1a_bed /path/to/HEK293T_m1A_sites.bed
+```
+
+### Raw-mode steps
+
+1. Dorado basecalling
+2. FASTQ extraction
+3. Alignment with `minimap2`
+4. `f5c eventalign`
+5. Eventalign filtering
+6. BED-based labeling
+7. Site and row balancing
+8. XGBoost training
+9. Random Forest training
+10. CatBoost training
+11. Performance figure generation
+
+### Main Nextflow outputs
+
+```text
+results/00_basecalling/
+results/01_alignment/
+results/02_eventalign/
+results/03_filtered/
+results/04_labeled/
+results/05_balanced_dataset/
+results/06_models/
+results/07_figures/
+```
+
+See [NEXTFLOW.md](NEXTFLOW.md) for more detail.
+
+## Script-Based Usage
+
+The model scripts can still be run directly:
+
+```bash
+python3 train_xgb.py
+python3 train_rf.py
+python3 train_catboost.py
+python3 generate_m1A_performance_figures.py
+```
+
+These scripts now first look for `m1A_fully_balanced.tsv.gz` in the current working directory. If it is not present, they fall back to the original hard-coded HPC path used during development.
+
+## Dependencies
 
 Python 3.10+ is recommended.
 
@@ -118,125 +195,69 @@ Main Python packages used:
 - `pandas`
 - `scikit-learn`
 - `xgboost`
+- `catboost`
 - `matplotlib`
 - `seaborn`
+- `gseapy`
 
-Install dependencies with:
+For the Nextflow pipeline, common command-line tools include:
 
-```bash
-pip install numpy pandas scikit-learn xgboost matplotlib seaborn
-```
+- `nextflow`
+- `dorado`
+- `minimap2`
+- `samtools`
+- `f5c`
 
-## How To Run
-
-### Train the CatBoost model
-
-```bash
-python3 train_catboost.py
-```
-
-### Train the XGBoost model
-
-```bash
-python3 train_xgb.py
-```
-
-### Train the Random Forest model
-
-```bash
-python3 train_rf.py
-```
-
-### Generate performance figures
-
-```bash
-python3 generate_m1a_performance_figures.py
-```
-
-Generated figures are saved in:
-
-```text
-figures/
-```
+An example conda environment for the Nextflow workflow is provided in `environment.yml`.
 
 ## Performance Summary
 
-### CatBoost
+Held-out site-level performance:
 
-Held-out site-level test performance:
+| Model | Accuracy | Precision | Recall | F1-score | AUROC | AUPRC |
+|---|---:|---:|---:|---:|---:|---:|
+| XGBoost | 0.8599 | 0.8235 | 0.8842 | 0.8528 | 0.9494 | 0.9472 |
+| Random Forest | 0.8599 | 0.9459 | 0.7368 | 0.8284 | 0.9092 | 0.9246 |
+| CatBoost | 0.8841 | 0.8817 | 0.8632 | 0.8723 | 0.9514 | 0.9503 |
 
-- Accuracy: **0.8841**
-- Precision: **0.8817**
-- Recall: **0.8632**
-- F1-score: **0.8723**
-- AUROC: **0.9514**
-- AUPRC: **0.9503**
-
-### XGBoost
-
-Held-out site-level test performance:
-
-- Accuracy: **0.8599**
-- Precision: **0.8235**
-- Recall: **0.8842**
-- F1-score: **0.8528**
-- AUROC: **0.9494**
-- AUPRC: **0.9472**
-
-### Random Forest
-
-Held-out site-level test performance:
-
-- Accuracy: **0.8599**
-- Precision: **0.9459**
-- Recall: **0.7368**
-- F1-score: **0.8284**
-- AUROC: **0.9092**
-- AUPRC: **0.9246**
-
-### Interpretation
-
-The **XGBoost model** provides the best overall balance for this task, especially in:
-
-- recall
-- F1-score
-- AUROC
-- AUPRC
-
-The **Random Forest model** achieves higher precision, but misses more true modified sites.
+**CatBoost** achieved the strongest overall held-out performance across accuracy, F1-score, AUROC, and AUPRC, while **Random Forest** produced the highest precision.
 
 ## Figures
 
-The project includes traditional performance visualizations for manuscript preparation:
+The repository includes figure generation for:
 
-- Performance Evaluation Bar Plot comparing Accuracy, Precision, Recall, F1-score, AUROC, and AUPRC
-- ROC curve comparison
-- Learning curves for all 3 models
-- Confusion matrices
+- ROC curves
+- precision-recall curves
+- confusion matrices
+- model metric comparison plots
 
-Example output files:
+Example outputs:
 
 - `figures/m1a_roc_pr_curves.png`
+- `figures/m1a_roc_pr_curves.svg`
 - `figures/m1a_confusion_matrices.png`
+- `figures/m1a_confusion_matrices.svg`
 - `figures/m1a_metric_comparison.png`
+- `figures/m1a_metric_comparison.svg`
 
 ## Notes
 
-- The current workflow assumes that each site has a **consistent label**.
-- The scripts are written for **site-level m1A prediction**, which is more suitable for biological interpretation than per-event classification alone.
-- The figure script retrains all models directly from the model scripts rather than loading serialized model objects.
+- The project is designed around **site-level m1A prediction**.
+- The balanced dataset assumes each site has a consistent label.
+- The Nextflow implementation follows the repository workflow while removing hard-coded HPC-specific assumptions where possible.
+- Some original shell scripts were written for a specific cluster environment, so the Nextflow pipeline reproduces their logic in a more portable structure through `modules/local/` and `bin/`.
 
 ## Future Directions
 
 Possible extensions include:
 
-- prediction on unlabeled candidate sites
-- feature importance analysis
-- SHAP-based model interpretation
+- prediction on unlabeled HeLa candidate sites
+- independent external validation
 - calibration analysis
-- external validation on independent nanopore datasets
-- comparison with deep learning approaches
+- SHAP-based interpretation
+- transcriptome-wide testing on naturally imbalanced candidate sets
+- extension to other RNA modifications
 
 ## Citation
 
-If you use this repository in a manuscript, thesis, or presentation, please cite the repository and the associated study once available.
+If you use this repository, please cite the associated project materials and any downstream manuscript or capstone outputs once available.
