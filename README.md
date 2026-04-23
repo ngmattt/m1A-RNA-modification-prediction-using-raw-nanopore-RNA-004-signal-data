@@ -234,8 +234,11 @@ The repository includes figure generation for:
 Example outputs:
 
 - `figures/m1a_roc_pr_curves.png`
+- `figures/m1a_roc_pr_curves.svg`
 - `figures/m1a_confusion_matrices.png`
+- `figures/m1a_confusion_matrices.svg`
 - `figures/m1a_metric_comparison.png`
+- `figures/m1a_metric_comparison.svg`
 
 ## Notes
 
