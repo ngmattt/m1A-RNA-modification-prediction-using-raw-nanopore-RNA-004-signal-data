@@ -43,12 +43,32 @@ process LABEL_EVENTALIGN {
     """
 }
 
-process BALANCE_DATASET {
-    tag "site and row balance"
-    publishDir "${params.outdir}/05_balanced_dataset", mode: "copy"
+process DOWNSAMPLE_M1A {
+    tag "site balance"
+    publishDir "${params.outdir}/05_site_balanced", mode: "copy"
 
     input:
     path labeled
+
+    output:
+    path "m1A_site_balanced.tsv.gz", emit: site_balanced
+
+    script:
+    """
+    set -euo pipefail
+    python3 "${projectDir}/downsample_m1A.py" \\
+      --input "${labeled}" \\
+      --output m1A_site_balanced.tsv.gz \\
+      --seed ${params.random_state}
+    """
+}
+
+process BALANCE_DATASET {
+    tag "row balance"
+    publishDir "${params.outdir}/06_balanced_dataset", mode: "copy"
+
+    input:
+    path site_balanced
 
     output:
     path "m1A_fully_balanced.tsv.gz", emit: balanced
@@ -56,10 +76,9 @@ process BALANCE_DATASET {
     script:
     """
     set -euo pipefail
-    python3 "${projectDir}/bin/balance_eventalign_dataset.py" \\
-      --input "${labeled}" \\
+    python3 "${projectDir}/bin/row_balance_eventalign_dataset.py" \\
+      --input "${site_balanced}" \\
       --output m1A_fully_balanced.tsv.gz \\
-      --max-reads-per-site ${params.max_reads_per_site} \\
       --random-state ${params.random_state}
     """
 }

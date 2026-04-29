@@ -3,7 +3,7 @@
 nextflow.enable.dsl = 2
 
 include { DORADO_BASECALL; ALIGN_FASTQ; F5C_EVENTALIGN } from './modules/local/raw_preprocessing'
-include { FILTER_EVENTALIGN; LABEL_EVENTALIGN; BALANCE_DATASET } from './modules/local/dataset_construction'
+include { FILTER_EVENTALIGN; LABEL_EVENTALIGN; DOWNSAMPLE_M1A; BALANCE_DATASET } from './modules/local/dataset_construction'
 include { TRAIN_XGB; TRAIN_RF; TRAIN_CATBOOST } from './modules/local/model_training'
 include { FIGURES } from './modules/local/figures'
 
@@ -25,7 +25,8 @@ workflow {
         eventalign = F5C_EVENTALIGN(basecalled.out.fastq, aligned.out.bam, pod5_ch, ref_ch, model_ch)
         filtered = FILTER_EVENTALIGN(eventalign.out.eventalign)
         labeled = LABEL_EVENTALIGN(filtered.out.filtered, bed_ch)
-        balanced = BALANCE_DATASET(labeled.out.labeled)
+        site_balanced = DOWNSAMPLE_M1A(labeled.out.labeled)
+        balanced = BALANCE_DATASET(site_balanced.out.site_balanced)
         balanced_ch = balanced.out.balanced
     } else {
         if (!params.hek293t_labeled_events) {

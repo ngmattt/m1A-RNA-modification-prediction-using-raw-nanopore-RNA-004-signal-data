@@ -117,7 +117,7 @@ These are the primary entry points for model development and evaluation. The rep
 ### Nextflow helper scripts
 
 - `bin/label_eventalign_from_bed.py`
-- `bin/balance_eventalign_dataset.py`
+- `bin/row_balance_eventalign_dataset.py`
 
 ## Nextflow Workflow
 
@@ -151,11 +151,12 @@ nextflow run main.nf -profile conda \
 4. `f5c eventalign`
 5. Eventalign filtering
 6. BED-based labeling
-7. Site and row balancing
-8. XGBoost training
-9. Random Forest training
-10. CatBoost training
-11. Performance figure generation
+7. Site balancing with `downsample_m1A.py`
+8. Row balancing
+9. XGBoost training
+10. Random Forest training
+11. CatBoost training
+12. Performance figure generation
 
 ### Main Nextflow outputs
 
@@ -165,9 +166,10 @@ results/01_alignment/
 results/02_eventalign/
 results/03_filtered/
 results/04_labeled/
-results/05_balanced_dataset/
-results/06_models/
-results/07_figures/
+results/05_site_balanced/
+results/06_balanced_dataset/
+results/07_models/
+results/08_figures/
 ```
 
 See [NEXTFLOW.md](NEXTFLOW.md) for more detail.
@@ -240,11 +242,14 @@ Example outputs:
 - `figures/m1a_metric_comparison.png`
 - `figures/m1a_metric_comparison.svg`
 
+PNG figures are exported at 600 dpi, and SVG files are also written for vector-based manuscript or poster editing.
+
 ## Notes
 
 - The project is designed around **site-level m1A prediction**.
 - The balanced dataset assumes each site has a consistent label.
 - The Nextflow implementation follows the repository workflow while removing hard-coded HPC-specific assumptions where possible.
+- The Nextflow dataset construction now explicitly includes the repository's original `downsample_m1A.py` site-balancing step before row balancing.
 - Some original shell scripts were written for a specific cluster environment, so the Nextflow pipeline reproduces their logic in a more portable structure through `modules/local/` and `bin/`.
 
 ## Future Directions

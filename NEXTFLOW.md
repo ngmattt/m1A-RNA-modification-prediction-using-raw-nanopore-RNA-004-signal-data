@@ -8,11 +8,12 @@ The workflow is organized into:
 
 - `main.nf`: top-level orchestration
 - `modules/local/raw_preprocessing.nf`: Dorado, alignment, and `f5c eventalign`
-- `modules/local/dataset_construction.nf`: filtering, BED labeling, and balancing
+- `modules/local/dataset_construction.nf`: filtering, BED labeling, site downsampling, and row balancing
 - `modules/local/model_training.nf`: XGBoost, Random Forest, and CatBoost training
 - `modules/local/figures.nf`: performance figure generation
 - `bin/label_eventalign_from_bed.py`: BED-based labeling helper
-- `bin/balance_eventalign_dataset.py`: site and row balancing helper
+- `downsample_m1A.py`: site-balancing step from the original repository workflow
+- `bin/row_balance_eventalign_dataset.py`: row-balancing helper
 
 ## Supported modes
 
@@ -42,20 +43,22 @@ nextflow run main.nf -profile conda \
 4. `f5c eventalign`
 5. Eventalign filtering
 6. BED-based labeling
-7. Site balancing and row balancing
-8. XGBoost training
-9. Random Forest training
-10. CatBoost training
-11. Performance figure generation
+7. Site balancing with `downsample_m1A.py`
+8. Row balancing
+9. XGBoost training
+10. Random Forest training
+11. CatBoost training
+12. Performance figure generation
 
 ## Main outputs
 
 ```text
-results/05_balanced_dataset/m1A_fully_balanced.tsv.gz
-results/06_models/xgb/
-results/06_models/rf/
-results/06_models/catboost/
-results/07_figures/
+results/05_site_balanced/m1A_site_balanced.tsv.gz
+results/06_balanced_dataset/m1A_fully_balanced.tsv.gz
+results/07_models/xgb/
+results/07_models/rf/
+results/07_models/catboost/
+results/08_figures/
 ```
 
 ## Notes

@@ -1,5 +1,5 @@
 process TRAIN_XGB {
-    publishDir "${params.outdir}/06_models/xgb", mode: "copy"
+    publishDir "${params.outdir}/07_models/xgb", mode: "copy"
 
     input:
     path balanced
@@ -18,7 +18,7 @@ process TRAIN_XGB {
 }
 
 process TRAIN_RF {
-    publishDir "${params.outdir}/06_models/rf", mode: "copy"
+    publishDir "${params.outdir}/07_models/rf", mode: "copy"
 
     input:
     path balanced
@@ -37,7 +37,7 @@ process TRAIN_RF {
 }
 
 process TRAIN_CATBOOST {
-    publishDir "${params.outdir}/06_models/catboost", mode: "copy"
+    publishDir "${params.outdir}/07_models/catboost", mode: "copy"
 
     input:
     path balanced
