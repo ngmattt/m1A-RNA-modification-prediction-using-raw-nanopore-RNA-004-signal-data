@@ -3,7 +3,13 @@
 import os
 from pathlib import Path
 
-OUTPUT_DIR = Path("/N/project/NGS-JangaLab/Matthew/ML_data/figures/high_confidence_catboost_enrichment")
+WORKDIR = Path.cwd()
+OUTPUT_DIR = Path(
+    os.environ.get(
+        "M1A_OUTPUT_DIR",
+        str(WORKDIR / "figures" / "high_confidence_catboost_enrichment"),
+    )
+)
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 mpl_dir = OUTPUT_DIR / ".mpl-cache"
@@ -23,14 +29,14 @@ import gseapy as gp
 from sklearn.model_selection import StratifiedKFold
 
 import train_xgb as shared_pipeline
-import train_m1a_catboost_simple as catboost_pipeline
+import train_catboost as catboost_pipeline
 
 
 # ----------------------------
 # Config
 # ----------------------------
-DATA_PATH = "/N/project/NGS-JangaLab/Matthew/rna_seq_data/ML_data/m1A_fully_balanced.tsv.gz"
-BED_PATH = "/N/project/NGS-JangaLab/Matthew/rna_seq_data/raw_data/HEK293T_RNA004/rna_mods/HEK293T_m1A_sites.bed"
+DEFAULT_DATA_PATH = "/N/project/NGS-JangaLab/Matthew/rna_seq_data/ML_data/m1A_fully_balanced.tsv.gz"
+DEFAULT_BED_PATH = "/N/project/NGS-JangaLab/Matthew/rna_seq_data/raw_data/HEK293T_RNA004/rna_mods/HEK293T_m1A_sites.bed"
 HIGH_CONFIDENCE_THRESHOLD = 0.80
 MIN_GENE_COUNT = 30
 LIBRARIES = [
@@ -47,8 +53,26 @@ LIBRARIES = [
 # ----------------------------
 sns.set_theme(style="whitegrid", context="talk")
 plt.rcParams["figure.dpi"] = 160
-plt.rcParams["savefig.dpi"] = 300
+plt.rcParams["savefig.dpi"] = 600
 plt.rcParams["font.family"] = "DejaVu Sans"
+
+SAVEFIG_KWARGS = {
+    "bbox_inches": "tight",
+    "pad_inches": 0.35,
+    "dpi": 600,
+}
+
+
+def resolve_path(env_var_name, local_filename, default_path):
+    env_path = os.environ.get(env_var_name)
+    if env_path:
+        return Path(env_path)
+
+    local_candidate = Path(local_filename)
+    if local_candidate.exists():
+        return local_candidate
+
+    return Path(default_path)
 
 
 def save_dotplot(df, title, filename):
@@ -76,8 +100,9 @@ def save_dotplot(df, title, filename):
         fontsize=10,
     )
     fig.subplots_adjust(left=0.46, right=0.78, top=0.90, bottom=0.12)
-    fig.savefig(OUTPUT_DIR / f"{filename}.png", bbox_inches="tight", pad_inches=0.35)
+    fig.savefig(OUTPUT_DIR / f"{filename}.png", **SAVEFIG_KWARGS)
     fig.savefig(OUTPUT_DIR / f"{filename}.pdf", bbox_inches="tight", pad_inches=0.35)
+    fig.savefig(OUTPUT_DIR / f"{filename}.svg", bbox_inches="tight", pad_inches=0.35)
     plt.close(fig)
 
 
@@ -92,8 +117,9 @@ def save_barplot(df, title, filename):
     for container in ax.containers:
         ax.bar_label(container, fmt="%.2f", padding=3, fontsize=9)
     fig.subplots_adjust(left=0.42, right=0.97, top=0.90, bottom=0.12)
-    fig.savefig(OUTPUT_DIR / f"{filename}.png", bbox_inches="tight", pad_inches=0.35)
+    fig.savefig(OUTPUT_DIR / f"{filename}.png", **SAVEFIG_KWARGS)
     fig.savefig(OUTPUT_DIR / f"{filename}.pdf", bbox_inches="tight", pad_inches=0.35)
+    fig.savefig(OUTPUT_DIR / f"{filename}.svg", bbox_inches="tight", pad_inches=0.35)
     plt.close(fig)
 
 
@@ -138,8 +164,11 @@ def oof_probabilities(x_table, y, cat_feature_indices, params):
     return probs
 
 
-print("Loading labeled event dataset...")
-raw_df = pd.read_csv(DATA_PATH, sep="\t", compression="gzip")
+data_path = resolve_path("M1A_DATA_PATH", "m1A_fully_balanced.tsv.gz", DEFAULT_DATA_PATH)
+bed_path = resolve_path("M1A_BED_PATH", "HEK293T_m1A_sites.bed", DEFAULT_BED_PATH)
+
+print(f"Loading labeled event dataset from: {data_path}")
+raw_df = pd.read_csv(data_path, sep="\t", compression="gzip")
 
 print("Building site-level feature table...")
 event_df, numeric_cols, categorical_cols = shared_pipeline.prepare_event_table(raw_df)
@@ -178,6 +207,7 @@ print(f"Selected sites at probability >= {selected_threshold:.2f}: {len(selected
 print(selected_df[["site", "label", "oof_probability"]].head(20).to_string(index=False))
 
 print("Matching high-confidence predicted sites to BED annotations...")
+BED_PATH = bed_path
 bed_df = build_bed_annotation_table()
 annotated_df = selected_df.merge(bed_df, on="site", how="inner")
 annotated_df.to_csv(OUTPUT_DIR / "high_confidence_catboost_sites_annotated.tsv", sep="\t", index=False)

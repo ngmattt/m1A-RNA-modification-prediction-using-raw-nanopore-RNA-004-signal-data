@@ -71,8 +71,13 @@ def resolve_data_path():
 # ----------------------------
 sns.set_theme(style="whitegrid", context="talk")
 plt.rcParams["figure.dpi"] = 160
-plt.rcParams["savefig.dpi"] = 300
+plt.rcParams["savefig.dpi"] = 600
 plt.rcParams["font.family"] = "DejaVu Sans"
+
+SAVEFIG_KWARGS = {
+    "bbox_inches": "tight",
+    "dpi": 600,
+}
 
 
 def compute_summary_metrics(y_true, y_prob, threshold):
@@ -204,8 +209,9 @@ def save_roc_pr_figure(xgb_true, xgb_prob, rf_true, rf_prob):
     axes[1].legend(frameon=True, fontsize=10, loc="lower left")
 
     fig.tight_layout()
-    fig.savefig(OUTPUT_DIR / "m1a_roc_pr_curves.png", bbox_inches="tight")
+    fig.savefig(OUTPUT_DIR / "m1a_roc_pr_curves.png", **SAVEFIG_KWARGS)
     fig.savefig(OUTPUT_DIR / "m1a_roc_pr_curves.pdf", bbox_inches="tight")
+    fig.savefig(OUTPUT_DIR / "m1a_roc_pr_curves.svg", bbox_inches="tight")
     plt.close(fig)
 
 
@@ -237,8 +243,9 @@ def save_confusion_figure(xgb_metrics, rf_metrics):
     axes[1].set_ylabel("True Label")
 
     fig.tight_layout()
-    fig.savefig(OUTPUT_DIR / "m1a_confusion_matrices.png", bbox_inches="tight")
+    fig.savefig(OUTPUT_DIR / "m1a_confusion_matrices.png", **SAVEFIG_KWARGS)
     fig.savefig(OUTPUT_DIR / "m1a_confusion_matrices.pdf", bbox_inches="tight")
+    fig.savefig(OUTPUT_DIR / "m1a_confusion_matrices.svg", bbox_inches="tight")
     plt.close(fig)
 
 
@@ -273,8 +280,9 @@ def save_metrics_barplot(xgb_metrics, rf_metrics):
         ax.bar_label(container, fmt="%.3f", padding=2, fontsize=9)
 
     fig.tight_layout()
-    fig.savefig(OUTPUT_DIR / "m1a_metric_comparison.png", bbox_inches="tight")
+    fig.savefig(OUTPUT_DIR / "m1a_metric_comparison.png", **SAVEFIG_KWARGS)
     fig.savefig(OUTPUT_DIR / "m1a_metric_comparison.pdf", bbox_inches="tight")
+    fig.savefig(OUTPUT_DIR / "m1a_metric_comparison.svg", bbox_inches="tight")
     plt.close(fig)
 
 

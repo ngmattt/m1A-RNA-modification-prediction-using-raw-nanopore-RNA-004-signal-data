@@ -1,5 +1,5 @@
 process FIGURES {
-    publishDir "${params.outdir}/07_figures", mode: "copy"
+    publishDir "${params.outdir}/08_figures", mode: "copy"
 
     input:
     path balanced
