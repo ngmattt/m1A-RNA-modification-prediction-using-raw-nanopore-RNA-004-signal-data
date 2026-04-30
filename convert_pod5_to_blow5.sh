@@ -14,8 +14,8 @@ set -euo pipefail
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate f5c_env
 
-POD5_DIR="/N/project/NGS-JangaLab/Matthew/rna_seq_data/raw_data/HEK293T_RNA004/pod5_split"
-OUTDIR="/N/project/NGS-JangaLab/Matthew/rna_seq_data/raw_data/HEK293T_RNA004/blow5/split_blow5"
+POD5_DIR="/N/project/NGS-JangaLab/Matthew/rna_seq_data/raw_data/HEK293T_RNA004/SGNex_Hek293T_directRNA_replicate5_run1.pod5"
+OUTDIR="/N/project/NGS-JangaLab/Matthew/rna_seq_data/raw_data/HEK293T_RNA004/blow5"
 
 mkdir -p "$OUTDIR"
 

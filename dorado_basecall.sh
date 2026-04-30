@@ -65,3 +65,11 @@ ls -lh "$OUT_BAM"
 
 samtools fastq "$OUT_BAM" | gzip > "$OUT_FASTQ"
 ls -lh "$OUT_FASTQ"
+
+samtools sort \
+  -@ 16 \
+  -o SGNex_Hek293T_directRNA_replicate5_run1_sorted.bam \
+  "$OUT_BAM" 
+
+samtools index \
+  SGNex_Hek293T_directRNA_replicate5_run1_sorted.bam
