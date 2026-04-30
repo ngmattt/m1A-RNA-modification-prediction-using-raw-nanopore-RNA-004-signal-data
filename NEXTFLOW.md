@@ -7,10 +7,10 @@ This repository now includes a Nextflow workflow for automating the m1A nanopore
 The workflow is organized into:
 
 - `main.nf`: top-level orchestration
-- `modules/local/raw_preprocessing.nf`: Dorado, alignment, and `f5c eventalign`
+- `modules/local/raw_preprocessing.nf`: POD5 to BLOW5 conversion, Dorado basecalling, alignment, and `f5c index/eventalign`
 - `modules/local/dataset_construction.nf`: filtering, BED labeling, site downsampling, and row balancing
 - `modules/local/model_training.nf`: XGBoost, Random Forest, and CatBoost training
-- `modules/local/figures.nf`: performance figure generation
+- `modules/local/figures.nf`: performance figure generation plus poster results figures
 - `bin/label_eventalign_from_bed.py`: BED-based labeling helper
 - `downsample_m1A.py`: site-balancing step from the original repository workflow
 - `bin/row_balance_eventalign_dataset.py`: row-balancing helper
@@ -37,33 +37,49 @@ nextflow run main.nf -profile conda \
 
 ## Pipeline steps in raw mode
 
-1. Dorado basecalling
-2. FASTQ extraction
-3. Alignment with minimap2
-4. `f5c eventalign`
-5. Eventalign filtering
-6. BED-based labeling
-7. Site balancing with `downsample_m1A.py`
-8. Row balancing
-9. XGBoost training
-10. Random Forest training
-11. CatBoost training
-12. Performance figure generation
+1. POD5 to BLOW5 conversion
+2. Dorado basecalling to BAM
+3. FASTQ extraction from BAM
+4. Alignment with minimap2 to create the BAM used by `f5c`
+5. `f5c index`
+6. `f5c eventalign`
+7. Eventalign filtering
+8. BED-based labeling
+9. Site balancing with `downsample_m1A.py`
+10. Row balancing
+11. XGBoost training
+12. Random Forest training
+13. CatBoost training
+14. Performance figure generation
+15. Poster results figure generation
 
 ## Main outputs
 
 ```text
-results/05_site_balanced/m1A_site_balanced.tsv.gz
-results/06_balanced_dataset/m1A_fully_balanced.tsv.gz
-results/07_models/xgb/
-results/07_models/rf/
-results/07_models/catboost/
-results/08_figures/
+results/00_blow5_conversion/
+results/01_basecalling/
+results/02_alignment/
+results/03_eventalign/
+results/04_filtered/
+results/05_labeled/
+results/06_site_balanced/m1A_site_balanced.tsv.gz
+results/07_balanced_dataset/m1A_fully_balanced.tsv.gz
+results/08_models/xgb/
+results/08_models/rf/
+results/08_models/catboost/
+results/09_figures/
+results/10_poster_results/performance/
+results/10_poster_results/roc/
+results/10_poster_results/learning_curves/
+results/10_poster_results/high_confidence_enrichment/
 ```
 
 ## Notes
 
 - This Nextflow implementation follows the repository scripts and reproduces the project workflow in a portable way.
+- In raw mode, the pipeline now explicitly follows the repository methodology: `POD5 -> BLOW5`, `POD5 -> Dorado BAM -> FASTQ`, `FASTQ -> aligned BAM`, then `f5c index/eventalign`.
 - In raw mode, BED labels are used to construct the balanced HEK293T training dataset automatically.
 - The helper scripts in `bin/` replace brittle inline code and make the workflow easier to test independently.
+- Poster results generation is controlled by `--run_poster_results true|false`.
+- High-confidence CatBoost enrichment is wired into the pipeline but defaults to off because Enrichr access may require outbound network access. Enable it with `--run_high_confidence_enrichment true` and provide `--m1a_bed`.
 - HeLa inference can be added as a downstream extension after the core repository workflow is stabilized.
