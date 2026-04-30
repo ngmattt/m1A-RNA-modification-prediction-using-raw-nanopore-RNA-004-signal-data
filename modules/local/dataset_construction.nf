@@ -1,6 +1,6 @@
 process FILTER_EVENTALIGN {
     tag "filter features"
-    publishDir "${params.outdir}/03_filtered", mode: "copy"
+    publishDir "${params.outdir}/04_filtered", mode: "copy"
 
     input:
     path eventalign
@@ -24,7 +24,7 @@ process FILTER_EVENTALIGN {
 
 process LABEL_EVENTALIGN {
     tag "label m1A"
-    publishDir "${params.outdir}/04_labeled", mode: "copy"
+    publishDir "${params.outdir}/05_labeled", mode: "copy"
 
     input:
     path filtered
@@ -45,7 +45,7 @@ process LABEL_EVENTALIGN {
 
 process DOWNSAMPLE_M1A {
     tag "site balance"
-    publishDir "${params.outdir}/05_site_balanced", mode: "copy"
+    publishDir "${params.outdir}/06_site_balanced", mode: "copy"
 
     input:
     path labeled
@@ -65,7 +65,7 @@ process DOWNSAMPLE_M1A {
 
 process BALANCE_DATASET {
     tag "row balance"
-    publishDir "${params.outdir}/06_balanced_dataset", mode: "copy"
+    publishDir "${params.outdir}/07_balanced_dataset", mode: "copy"
 
     input:
     path site_balanced

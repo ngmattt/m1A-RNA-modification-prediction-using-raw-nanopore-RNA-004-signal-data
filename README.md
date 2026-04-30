@@ -145,31 +145,35 @@ nextflow run main.nf -profile conda \
 
 ### Raw-mode steps
 
-1. Dorado basecalling
-2. FASTQ extraction
-3. Alignment with `minimap2`
-4. `f5c eventalign`
-5. Eventalign filtering
-6. BED-based labeling
-7. Site balancing with `downsample_m1A.py`
-8. Row balancing
-9. XGBoost training
-10. Random Forest training
-11. CatBoost training
-12. Performance figure generation
+1. POD5 to BLOW5 conversion with `convert_pod5_to_blow5.sh` logic
+2. Dorado basecalling to BAM with `dorado_basecall.sh` logic
+3. FASTQ extraction from the Dorado BAM
+4. Alignment with `fastq_to_bam.sh` logic
+5. `f5c index` and `f5c eventalign` with `f5c_index_eventalign.sh` logic
+6. Eventalign filtering
+7. BED-based labeling
+8. Site balancing with `downsample_m1A.py`
+9. Row balancing
+10. XGBoost training
+11. Random Forest training
+12. CatBoost training
+13. Performance figure generation
+14. Poster results figure generation
 
 ### Main Nextflow outputs
 
 ```text
-results/00_basecalling/
-results/01_alignment/
-results/02_eventalign/
-results/03_filtered/
-results/04_labeled/
-results/05_site_balanced/
-results/06_balanced_dataset/
-results/07_models/
-results/08_figures/
+results/00_blow5_conversion/
+results/01_basecalling/
+results/02_alignment/
+results/03_eventalign/
+results/04_filtered/
+results/05_labeled/
+results/06_site_balanced/
+results/07_balanced_dataset/
+results/08_models/
+results/09_figures/
+results/10_poster_results/
 ```
 
 See [NEXTFLOW.md](NEXTFLOW.md) for more detail.
@@ -232,6 +236,10 @@ The repository includes figure generation for:
 - precision-recall curves
 - confusion matrices
 - model metric comparison plots
+- all-model poster metric plots
+- all-model poster ROC curves
+- model accuracy learning curves
+- high-confidence CatBoost enrichment plots
 
 Example outputs:
 
@@ -241,8 +249,19 @@ Example outputs:
 - `figures/m1a_confusion_matrices.svg`
 - `figures/m1a_metric_comparison.png`
 - `figures/m1a_metric_comparison.svg`
+- `all_model_performance_figures/all_model_metric_comparison.svg`
+- `all_model_performance_figures/all_models_roc_curves.svg`
+- `model_learning_curves/model_accuracy_learning_curves.svg`
+- `high_confidence_catboost_enrichment/KEGG_2026_high_confidence_catboost_top_terms.svg`
 
 PNG figures are exported at 600 dpi, and SVG files are also written for vector-based manuscript or poster editing.
+
+For the poster-specific results section, the main scripts are:
+
+- `plot_all_model_performance.py`
+- `plot_all_model_roc_curves.py`
+- `plot_model_accuracy_learning_curves.py`
+- `analyze_high_confidence_catboost_enrichment.py`
 
 ## Notes
 
